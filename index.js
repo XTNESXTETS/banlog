@@ -9,6 +9,7 @@ const FIREBASE_DB_URL = process.env.FIREBASE_DB_URL;
 const FIREBASE_DB_SECRET = process.env.FIREBASE_DB_SECRET;
 const AUTH_TOKEN = process.env.YOUR_AUTH_TOKEN;
 
+// 🔹 CheckBan endpoint (your existing one, keep it)
 app.post('/checkBan', async (req, res) => {
   try {
     const { userId, hwid, token } = req.body;
@@ -38,6 +39,56 @@ app.post('/checkBan', async (req, res) => {
     });
   } catch (err) {
     console.error('Ban check failed:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 🔹 GET /FirebaseProxy/getUserData/:userId → used by IsUserBanned
+app.get('/FirebaseProxy/getUserData/:userId', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Bearer ${AUTH_TOKEN}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { userId } = req.params;
+    const userBanUrl = `${FIREBASE_DB_URL}banned_users/${userId}.json?auth=${FIREBASE_DB_SECRET}`;
+
+    const userBanResp = await axios.get(userBanUrl);
+
+    return res.json(userBanResp.data || {});
+  } catch (err) {
+    console.error('Get user data failed:', err);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
+// 🔹 POST /FirebaseProxy/saveUserData → used by starts34
+app.post('/FirebaseProxy/saveUserData', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || authHeader !== `Bearer ${AUTH_TOKEN}`) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const data = req.body;
+
+    if (!data || !data.userID || !data.hwid) {
+      return res.status(400).json({ error: 'Missing required fields (userID, hwid)' });
+    }
+
+    const userIdUrl = `${FIREBASE_DB_URL}banned_users/${data.userID}.json?auth=${FIREBASE_DB_SECRET}`;
+    const hwidUrl = `${FIREBASE_DB_URL}banned_users_by_hwid/${data.hwid}.json?auth=${FIREBASE_DB_SECRET}`;
+
+    // Save to both userID and HWID paths
+    await Promise.all([
+      axios.put(userIdUrl, data),
+      axios.put(hwidUrl, data),
+    ]);
+
+    return res.json({ success: true });
+  } catch (err) {
+    console.error('Save user data failed:', err);
     return res.status(500).json({ error: 'Internal Server Error' });
   }
 });
