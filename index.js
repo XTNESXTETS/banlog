@@ -68,6 +68,25 @@ app.get('/FirebaseProxy/getUserData/:userId', async (req, res) => {
   }
 });
 
+// 🔹 NEW: GET /FirebaseProxy/getUserDataByHwid/:hwid → used by IsUserBanned
+app.get('/FirebaseProxy/getUserDataByHwid/:hwid', async (req, res) => {
+  try {
+    if (!isAuthorized(req)) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    const { hwid } = req.params;
+    const hwidBanUrl = `${FIREBASE_DB_URL}banned_users_by_hwid/${hwid}.json?auth=${FIREBASE_DB_SECRET}`;
+
+    const hwidBanResp = await axios.get(hwidBanUrl);
+
+    return res.json(hwidBanResp.data || {});
+  } catch (err) {
+    console.error('Get hwid data failed:', err?.response?.data || err.message);
+    return res.status(500).json({ error: 'Internal Server Error' });
+  }
+});
+
 // 🔹 POST /FirebaseProxy/saveUserData → used by starts34
 app.post('/FirebaseProxy/saveUserData', async (req, res) => {
   try {
